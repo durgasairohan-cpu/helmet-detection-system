@@ -11,7 +11,7 @@ export default function App() {
     formData.append("file", file);
 
     const response = await axios.post(
-      "http://localhost:8000/detect",
+      "https://helmet-detection-system-7drt.onrender.com/detect",
       formData
     );
 

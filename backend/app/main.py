@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-model = YOLO("yolov8n.pt")
+model = YOLO("yolov8n.pt", task="detect")
 
 @app.get("/")
 def root():

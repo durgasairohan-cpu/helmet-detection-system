@@ -1,0 +1,6 @@
+
+services:
+  - type: web
+    name: helmet-detection-api
+    env: docker
+    plan: free

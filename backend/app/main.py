@@ -23,31 +23,50 @@ def root():
 
 @app.post("/detect")
 async def detect_video(file: UploadFile = File(...)):
-    temp = tempfile.NamedTemporaryFile(delete=False)
-    temp.write(await file.read())
+    try:
+        temp = tempfile.NamedTemporaryFile(delete=False)
+        temp.write(await file.read())
 
-    cap = cv2.VideoCapture(temp.name)
+        cap = cv2.VideoCapture(temp.name)
 
-    detections = []
+        detections = []
+        frame_count = 0
 
-    while cap.isOpened():
-        ret, frame = cap.read()
+        while cap.isOpened():
+            ret, frame = cap.read()
 
-        if not ret:
-            break
+            if not ret:
+                break
 
-        results = model(frame)
+            frame_count += 1
 
-        for result in results:
-            boxes = result.boxes
-            detections.append({
-                "objects_detected": len(boxes)
-            })
+            # process every 10th frame
+            if frame_count % 10 != 0:
+                continue
 
-    cap.release()
+            results = model(frame)
 
-    return {
-        "status": "processed",
-        "frames_processed": len(detections),
-        "detections": detections[:10]
-    }
+            for result in results:
+                boxes = result.boxes
+
+                detections.append({
+                    "objects_detected": len(boxes)
+                })
+
+            # prevent Render memory crash
+            if len(detections) > 20:
+                break
+
+        cap.release()
+
+        return {
+            "status": "processed",
+            "frames_processed": frame_count,
+            "detections": detections
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }

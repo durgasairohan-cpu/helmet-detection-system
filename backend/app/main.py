@@ -1,11 +1,11 @@
-
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 import cv2
 import tempfile
+import os
 
-app = FastAPI(title="Helmet Detection API")
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -15,24 +15,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-model = YOLO("yolov8n.pt", task="detect")
+model = YOLO("yolov8n.pt")
 
 @app.get("/")
-def root():
-    return {"message": "Helmet Detection API Running"}
+def home():
+    return {"message": "API Running"}
 
 @app.post("/detect")
-async def detect_video(file: UploadFile = File(...)):
+async def detect(file: UploadFile = File(...)):
     try:
-        temp = tempfile.NamedTemporaryFile(delete=False)
-        temp.write(await file.read())
+        temp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        contents = await file.read()
+
+        temp.write(contents)
+        temp.close()
 
         cap = cv2.VideoCapture(temp.name)
 
-        detections = []
-        frame_count = 0
+        if not cap.isOpened():
+            return {"error": "Could not open video"}
 
-        while cap.isOpened():
+        frame_count = 0
+        detections = []
+
+        while True:
             ret, frame = cap.read()
 
             if not ret:
@@ -40,29 +46,34 @@ async def detect_video(file: UploadFile = File(...)):
 
             frame_count += 1
 
-            # process every 10th frame
-            if frame_count % 10 != 0:
+            # Skip frames for speed
+            if frame_count % 15 != 0:
                 continue
 
-            results = model(frame)
+            results = model.predict(frame, verbose=False)
+
+            count = 0
 
             for result in results:
-                boxes = result.boxes
+                count += len(result.boxes)
 
-                detections.append({
-                    "objects_detected": len(boxes)
-                })
+            detections.append({
+                "frame": frame_count,
+                "objects": count
+            })
 
-            # prevent Render memory crash
-            if len(detections) > 20:
+            # Prevent memory overload
+            if len(detections) >= 10:
                 break
 
         cap.release()
 
+        os.remove(temp.name)
+
         return {
             "status": "processed",
             "frames_processed": frame_count,
-            "detections": detections
+            "sample_detections": detections
         }
 
     except Exception as e:
